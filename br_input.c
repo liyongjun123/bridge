@@ -152,15 +152,15 @@ int br_handle_frame_finish(struct net *net, struct sock *sk, struct sk_buff *skb
 		break;
 	}
 
-	if (dst) {
+	if (dst) {	/* 目的mac对应的fdb项如果存在，不是广播或者多播的情况下,判断是否本地地址，如果是本地地址，调用br_pass_frame_up发往本地。 否则调用br_forward进行数据包转发*/
 		unsigned long now = jiffies;
 
 		if (dst->is_local)
-			return br_pass_frame_up(skb);
+			return br_pass_frame_up(skb);	// 目的地址是本机（网桥mac）
 
 		if (now != dst->used)
-			dst->used = now;
-		br_forward(dst->dst, skb, local_rcv, false);
+			dst->used = now;							/* 目的地址不是本机，非网桥mac */
+		br_forward(dst->dst, skb, local_rcv, false);	/*转发表中存在并且不是本地的，即需要转发到其它端口dst->dst*/
 	} else {
 		if (!mcast_hit)
 			br_flood(br, skb, pkt_type, local_rcv, false);
