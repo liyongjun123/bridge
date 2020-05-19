@@ -41,6 +41,8 @@ static int br_pass_frame_up(struct sk_buff *skb)
 	struct net_bridge_vlan_group *vg;
 	struct pcpu_sw_netstats *brstats = this_cpu_ptr(br->stats);
 
+pr_info("4. br_pass_frame_up\n");
+
 	u64_stats_update_begin(&brstats->syncp);
 	brstats->rx_packets++;
 	brstats->rx_bytes += skb->len;
@@ -84,9 +86,12 @@ int br_handle_frame_finish(struct net *net, struct sock *sk, struct sk_buff *skb
 
 pr_info("2. br_handle_frame_finish\n");
 
+	/*如果网桥端口不存在或者网桥端口状态为BR_STATE_DISABLED，则丢弃*/
 	if (!p || p->state == BR_STATE_DISABLED)
 		goto drop;
 
+	/*判断是否允许进入桥内，如果没有开启VLAN则所有数据包都可以进入，
+	如果开启了VLAN,则根据VLAN相应的规则，从桥上进行数据包转发。*/
 	if (!br_allowed_ingress(p->br, nbp_vlan_group_rcu(p), skb, &vid))
 		goto out;
 
@@ -94,25 +99,35 @@ pr_info("2. br_handle_frame_finish\n");
 
 	/* insert into forwarding database after filtering to avoid spoofing */
 	br = p->br;
+
+	/*如果网桥端口标志有BR_LEARNING,则更新fdb表。
+    一般新建网桥端口p->flags=BR_LEARNING| BR_FLOOD | BR_MCAST_FLOOD | BR_BCAST_FLOOD*/
 	if (p->flags & BR_LEARNING)
 		br_fdb_update(br, p, eth_hdr(skb)->h_source, vid, false);
 
+	//发往本地数据包标记，!!的作用是转换为bool值
 	local_rcv = !!(br->dev->flags & IFF_PROMISC);
+	/*目的地址为多播地址*/
 	if (is_multicast_ether_addr(eth_hdr(skb)->h_dest)) {
 		/* by definition the broadcast is also a multicast address */
+		/*如果目的地址是广播地址，将数据包也发往本地一份*/
 		if (is_broadcast_ether_addr(eth_hdr(skb)->h_dest)) {
 			pkt_type = BR_PKT_BROADCAST;
 			local_rcv = true;
 		} else {
 			pkt_type = BR_PKT_MULTICAST;
+			//igmp snooping留给网桥子系统的外部接口函数，
+			//当网桥接收了igmp数据包后就会调用该函数进行后续处理
 			if (br_multicast_rcv(br, p, skb, vid))
 				goto drop;
 		}
 	}
 
+	//如果网桥端口状态此时还是BR_STATE_LEARNING,则丢弃。
 	if (p->state == BR_STATE_LEARNING)
 		goto drop;
 
+	//将网桥所属的net_device放入skb的私有数据中（struct br_input_skb_cb）
 	BR_INPUT_SKB_CB(skb)->brdev = br->dev;
 
 	if (IS_ENABLED(CONFIG_INET) &&
@@ -133,7 +148,9 @@ pr_info("2. br_handle_frame_finish\n");
 	}
 
 	switch (pkt_type) {
+	//组播包
 	case BR_PKT_MULTICAST:
+		//获取组播转发项，设置local_rcv为true，组播包也要发往本地一份。
 		mdst = br_mdb_get(br, skb, vid);
 		if ((mdst || BR_INPUT_SKB_CB_MROUTERS_ONLY(skb)) &&
 		    br_multicast_querier_exists(br, eth_hdr(skb))) {
@@ -148,15 +165,19 @@ pr_info("2. br_handle_frame_finish\n");
 			br->dev->stats.multicast++;
 		}
 		break;
+	//单播包
 	case BR_PKT_UNICAST:
+		//根据目的MAC地址查找fdb表，看是否有对应的表项
 		dst = br_fdb_find_rcu(br, eth_hdr(skb)->h_dest, vid);
 	default:
 		break;
 	}
 
+	//如果找到目的MAC对应的表项
 	if (dst) {	/* 目的mac对应的fdb项如果存在，不是广播或者多播的情况下,判断是否本地地址，如果是本地地址，调用br_pass_frame_up发往本地。 否则调用br_forward进行数据包转发*/
 		unsigned long now = jiffies;
 
+		//送入上层处理
 		if (dst->is_local)
 			return br_pass_frame_up(skb);	// 目的地址是本机（网桥mac）
 

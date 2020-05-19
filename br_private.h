@@ -225,7 +225,7 @@ struct net_bridge_mdb_htable
 
 struct net_bridge_port {
 	struct net_bridge		*br;
-	struct net_device		*dev;
+	struct net_device		*dev;	//本端口所指向的物理网卡
 	struct list_head		list;
 
 	unsigned long			flags;
@@ -236,17 +236,18 @@ struct net_bridge_port {
 	/* STP */
 	u8				priority;
 	u8				state;
-	u16				port_no;
+	u16				port_no;	//本端口在网桥中的编号，唯一 id
 	unsigned char			topology_change_ack;
 	unsigned char			config_pending;
 	port_id				port_id;
-	port_id				designated_port;
-	bridge_id			designated_root;
-	bridge_id			designated_bridge;
-	u32				path_cost;
-	u32				designated_cost;
+	port_id				designated_port;	//指定端口的端口ID
+	bridge_id			designated_root;	//根网桥的网桥ID
+	bridge_id			designated_bridge;	//发送当前BPDU包的网桥的ID
+	u32				path_cost;				//此端口的路径花销
+	u32				designated_cost;		//到根桥的链路花销
 	unsigned long			designated_age;
 
+	//端口定时器，也就是stp控制超时的一些定时器列表.(详细的需要去看stp的协议).
 	struct timer_list		forward_delay_timer;
 	struct timer_list		hold_timer;
 	struct timer_list		message_age_timer;
