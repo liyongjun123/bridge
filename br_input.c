@@ -204,6 +204,7 @@ static int br_handle_local_finish(struct net *net, struct sock *sk, struct sk_bu
  * Return NULL if skb is handled
  * note: already called with rcu_read_lock
  */
+//所有网桥通信的数据包都会进入到这里，谓之为网桥处理函数 
 rx_handler_result_t br_handle_frame(struct sk_buff **pskb)
 {
 	struct net_bridge_port *p;
@@ -212,17 +213,27 @@ rx_handler_result_t br_handle_frame(struct sk_buff **pskb)
 	br_should_route_hook_t *rhook;
 
 pr_info("\n1. br_handle_frame\n");
+const unsigned char *source = eth_hdr(skb)->h_source;
+pr_info("source mac : %02x:%02x:%02x:%02x:%02x:%02x", source[0], source[1], source[2], source[3], source[4], source[5]);
+pr_info("dest mac   : %02x:%02x:%02x:%02x:%02x:%02x", dest[0], dest[1], dest[2], dest[3], dest[4], dest[5]);
 
+	/*如果是环回地址，直接返回RX_HANDLER_PASS*/
 	if (unlikely(skb->pkt_type == PACKET_LOOPBACK))
 		return RX_HANDLER_PASS;
 
+
+	/*判断源MAC地址是否是有效的地址，不是直接丢弃，源MAC地址不能是多播地址和全0地址*/
 	if (!is_valid_ether_addr(eth_hdr(skb)->h_source))
 		goto drop;
 
+
+	/*判断是否是共享数据包，若是则clone该数据包；若clone时分配内存出错，返回NULL*/ 
 	skb = skb_share_check(skb, GFP_ATOMIC);
 	if (!skb)
 		return RX_HANDLER_CONSUMED;
 
+
+	/*获取dev对应的网桥端口*/
 	p = br_port_get_rcu(skb->dev);
 	if (p->flags & BR_VLAN_TUNNEL) {
 		if (br_handle_ingress_vlan_tunnel(skb, p,
@@ -230,6 +241,8 @@ pr_info("\n1. br_handle_frame\n");
 			goto drop;
 	}
 
+	/*特殊MAC地址处理*/
+	//如果目的mac地址是本地链路地址link local reserved addr (01:80:c2:00:00:0X) STP报文
 	if (unlikely(is_link_local_ether_addr(dest))) {
 		u16 fwd_mask = p->br->group_fwd_mask_required;
 
@@ -281,6 +294,7 @@ pr_info("\n1. br_handle_frame\n");
 		 *   - returns = 0 (stolen/nf_queue)
 		 * Thus return 1 from the okfn() to signal the skb is ok to pass
 		 */
+		/*调用NF_BR_LOCAL_IN处钩子函数，结束后，进入br_handle_local_finish函数*/
 		if (NF_HOOK(NFPROTO_BRIDGE, NF_BR_LOCAL_IN,
 			    dev_net(skb->dev), NULL, skb, skb->dev, NULL,
 			    br_handle_local_finish) == 1) {
@@ -292,7 +306,7 @@ pr_info("\n1. br_handle_frame\n");
 
 forward:
 	switch (p->state) {
-	// 网桥端口处于转发状态
+	//网桥端口处于转发状态
 	case BR_STATE_FORWARDING:
 		rhook = rcu_dereference(br_should_route_hook);
 		if (rhook) {
@@ -303,11 +317,13 @@ forward:
 			dest = eth_hdr(skb)->h_dest;
 		}
 		/* fall through */
-	// 网桥端口处于学习状态，处于转发状态也会执行下面的代码，因为上面的 case 没有 break
+	/*网桥端口处于学习状态，处于转发状态也会执行下面的代码，因为上面的case没有break。*/
 	case BR_STATE_LEARNING:
+		/*数据包目的MAC为网桥的Mac，发往本地的数据包*/
 		if (ether_addr_equal(p->br->dev->dev_addr, dest))
 			skb->pkt_type = PACKET_HOST;
 
+		/*调用NF_BR_PRE_ROUTING处钩子函数，结束后进入br_handle_frame_finish函数*/
 		NF_HOOK(NFPROTO_BRIDGE, NF_BR_PRE_ROUTING,
 			dev_net(skb->dev), NULL, skb, skb->dev, NULL,
 			br_handle_frame_finish);
