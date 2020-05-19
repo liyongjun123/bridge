@@ -43,11 +43,13 @@ static int br_pass_frame_up(struct sk_buff *skb)
 
 pr_info("4. br_pass_frame_up\n");
 
+	//统计网桥设备上的收包流量数据
 	u64_stats_update_begin(&brstats->syncp);
 	brstats->rx_packets++;
 	brstats->rx_bytes += skb->len;
 	u64_stats_update_end(&brstats->syncp);
 
+	//获取网桥设备上的VLAN组
 	vg = br_vlan_group_rcu(br);
 	/* Bridge is just like any other port.  Make sure the
 	 * packet is allowed except in promisc modue when someone
@@ -59,15 +61,21 @@ pr_info("4. br_pass_frame_up\n");
 		return NET_RX_DROP;
 	}
 
+	//记录数据包的收包网络设备
 	indev = skb->dev;
+	//将数据包的收包设备改为网桥设备
+	//当再次进入__netif_receive_skb_core时就不会再次进入桥处理了，因为网桥上没有注册 rx_handler 函数
 	skb->dev = brdev;
 	skb = br_handle_vlan(br, NULL, vg, skb);
 	if (!skb)
 		return NET_RX_DROP;
 	/* update the multicast stats if the packet is IGMP/MLD */
+	//如果数据包是组播，更新组播数据包的统计信息
 	br_multicast_count(br, NULL, skb, br_multicast_igmp_type(skb),
 			   BR_MCAST_DIR_TX);
 
+	//调用NF_BR_LOCAL_IN处钩子函数，最后调用br_netif_receive_skb函数。
+	//再次进入netif_receive_skb，由于skb-dev被设置成了bridge，而bridge设备的rx_handler函数是没有被设置的，所以就不会再次进入bridge逻辑，而直接进入了主机上层协议栈。
 	return NF_HOOK(NFPROTO_BRIDGE, NF_BR_LOCAL_IN,
 		       dev_net(indev), NULL, skb, indev, NULL,
 		       br_netif_receive_skb);
@@ -183,14 +191,18 @@ pr_info("2. br_handle_frame_finish\n");
 
 		if (now != dst->used)
 			dst->used = now;							/* 目的地址不是本机，非网桥mac */
+		//根据fdb转发表项进行转发，若这里local_rcv 为1,（即端口处于混杂模式IFF_PROMISC），则会克隆一份再转发
+		//传入的第一个参数dst->dst 即为要转发的目的端口
 		br_forward(dst->dst, skb, local_rcv, false);	/*转发表中存在并且不是本地的，即需要转发到其它端口dst->dst*/
 	} else {
+		//进行广播或者组播洪泛
 		if (!mcast_hit)
 			br_flood(br, skb, pkt_type, local_rcv, false);
 		else
 			br_multicast_flood(mdst, skb, local_rcv, false);
 	}
 
+	//local_rcv标记为1，送入上层处理。
 	if (local_rcv)
 		return br_pass_frame_up(skb);
 

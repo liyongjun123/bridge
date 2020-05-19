@@ -169,20 +169,25 @@ struct net_bridge_vlan_group {
 };
 
 struct net_bridge_fdb_entry {
+	/*链接到net_bridge的hash[BR_HASH_SIZE]*/
 	struct hlist_node		hlist;
+	/*指向网桥端口*/
 	struct net_bridge_port		*dst;
 
+	/*mac地址*/
 	mac_addr			addr;
-	__u16				vlan_id;
+	__u16				vlan_id;	//MAC属于哪个VLAN？
+	/*mac地址是否为本地地址，1为是*/
 	unsigned char			is_local:1,
+	/*mac地址为静态的，表示mac地址不会过期，本地地址都是静态的。*/
 					is_static:1,
-					added_by_user:1,
-					added_by_external_learn:1,
+					added_by_user:1,	//用户配置
+					added_by_external_learn:1,	//外部学习
 					offloaded:1;
 
 	/* write-heavy members should not affect lookups */
 	unsigned long			updated ____cacheline_aligned_in_smp;
-	unsigned long			used;
+	unsigned long			used;	//引用计数
 
 	struct rcu_head			rcu;
 };
@@ -224,22 +229,26 @@ struct net_bridge_mdb_htable
 };
 
 struct net_bridge_port {
+	/*指向网桥端口所属的网桥设备*/
 	struct net_bridge		*br;
+	/*添加到网桥的设备*/
 	struct net_device		*dev;	//本端口所指向的物理网卡
+	/*网桥端口列表，连接到net_bridge->head_list*/
 	struct list_head		list;
 
+    /*flags参数很重要*/
 	unsigned long			flags;
 #ifdef CONFIG_BRIDGE_VLAN_FILTERING
 	struct net_bridge_vlan_group	__rcu *vlgrp;
 #endif
 
 	/* STP */
-	u8				priority;
-	u8				state;
+	u8				priority;	/*端口优先级*/
+	u8				state;	/*端口状态*/
 	u16				port_no;	//本端口在网桥中的编号，唯一 id
 	unsigned char			topology_change_ack;
 	unsigned char			config_pending;
-	port_id				port_id;
+	port_id				port_id;	/*端口ID，由端口优先级和端口号组成*/
 	port_id				designated_port;	//指定端口的端口ID
 	bridge_id			designated_root;	//根网桥的网桥ID
 	bridge_id			designated_bridge;	//发送当前BPDU包的网桥的ID
