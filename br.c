@@ -218,16 +218,19 @@ static int __init br_init(void)
 
 pr_info("a. insmod-br_init\n");
 
+    /*注册协议生成树收包函数*/
 	err = stp_proto_register(&br_stp_proto);
 	if (err < 0) {
 		pr_err("bridge: can't register sap for STP\n");
 		return err;
 	}
 
+	/*转发数据库初始化*/
 	err = br_fdb_init();
 	if (err)
 		goto err_out;
 
+	/*在/proc目录下生成任何与bridge相关的目录，如果我们想在/proc下生成bridge相关的子目录或子文件*/
 	err = register_pernet_subsys(&br_net_ops);
 	if (err)
 		goto err_out1;
@@ -236,18 +239,22 @@ pr_info("a. insmod-br_init\n");
 	if (err)
 		goto err_out2;
 
+	/*注册相关网络设备的事件通知连*/
 	err = register_netdevice_notifier(&br_device_notifier);
 	if (err)
 		goto err_out3;
 
+	/*注册通知连，主要针对桥转发表事件的相关信息*/
 	err = register_switchdev_notifier(&br_switchdev_notifier);
 	if (err)
 		goto err_out4;
 
+	/*进行netlink的初始化*/
 	err = br_netlink_init();
 	if (err)
 		goto err_out5;
 
+	/*用来处理ioctl命令的函数，比如添加和删除网桥*/
 	brioctl_set(br_ioctl_deviceless_stub);
 
 #if IS_ENABLED(CONFIG_ATM_LANE)
