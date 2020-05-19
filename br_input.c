@@ -82,6 +82,8 @@ int br_handle_frame_finish(struct net *net, struct sock *sk, struct sk_buff *skb
 	struct net_bridge *br;
 	u16 vid = 0;
 
+pr_info("2. br_handle_frame_finish\n");
+
 	if (!p || p->state == BR_STATE_DISABLED)
 		goto drop;
 
@@ -208,6 +210,8 @@ rx_handler_result_t br_handle_frame(struct sk_buff **pskb)
 	struct sk_buff *skb = *pskb;
 	const unsigned char *dest = eth_hdr(skb)->h_dest;
 	br_should_route_hook_t *rhook;
+
+pr_info("1. br_handle_frame\n");
 
 	if (unlikely(skb->pkt_type == PACKET_LOOPBACK))
 		return RX_HANDLER_PASS;
