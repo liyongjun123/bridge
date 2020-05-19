@@ -211,7 +211,7 @@ rx_handler_result_t br_handle_frame(struct sk_buff **pskb)
 	const unsigned char *dest = eth_hdr(skb)->h_dest;
 	br_should_route_hook_t *rhook;
 
-pr_info("1. br_handle_frame\n");
+pr_info("\n1. br_handle_frame\n");
 
 	if (unlikely(skb->pkt_type == PACKET_LOOPBACK))
 		return RX_HANDLER_PASS;
