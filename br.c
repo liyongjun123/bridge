@@ -216,7 +216,7 @@ static int __init br_init(void)
 
 	BUILD_BUG_ON(sizeof(struct br_input_skb_cb) > FIELD_SIZEOF(struct sk_buff, cb));
 
-pr_info("a.insmod-br_init\n");
+pr_info("a. insmod-br_init\n");
 
 	err = stp_proto_register(&br_stp_proto);
 	if (err < 0) {
@@ -286,7 +286,7 @@ static void __exit br_deinit(void)
 	brioctl_set(NULL);
 	unregister_pernet_subsys(&br_net_ops);
 
-pr_info("z.rmmod-br_deinit\n");
+pr_info("z. rmmod-br_deinit\n");
 
 	rcu_barrier(); /* Wait for completion of call_rcu()'s */
 
