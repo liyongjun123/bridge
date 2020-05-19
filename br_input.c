@@ -212,8 +212,9 @@ rx_handler_result_t br_handle_frame(struct sk_buff **pskb)
 	const unsigned char *dest = eth_hdr(skb)->h_dest;
 	br_should_route_hook_t *rhook;
 
-pr_info("\n1. br_handle_frame\n");
+
 const unsigned char *source = eth_hdr(skb)->h_source;
+pr_info("\n1. br_handle_frame\n");
 pr_info("source mac : %02x:%02x:%02x:%02x:%02x:%02x", source[0], source[1], source[2], source[3], source[4], source[5]);
 pr_info("dest mac   : %02x:%02x:%02x:%02x:%02x:%02x", dest[0], dest[1], dest[2], dest[3], dest[4], dest[5]);
 
