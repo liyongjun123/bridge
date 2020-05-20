@@ -578,6 +578,7 @@ pr_info("c1. brctl addif <bridge> <device>-br_add_if\n");
 
 	list_add_rcu(&p->list, &br->port_list);
 
+	/*更新桥上的端口数,如果有更新，再进一步将其设为混杂模式*/
 	nbp_update_port_count(br);
 
 	netdev_update_features(br->dev);
