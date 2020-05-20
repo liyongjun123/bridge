@@ -90,7 +90,7 @@ pr_info("5. __br_forward\n");
 	indev = skb->dev;
 	skb->dev = to->dev;
 	if (!local_orig) {
-	pr_info("local_orig\n");
+	pr_info("not local_orig\n");
 		if (skb_warn_if_lro(skb)) {
 			kfree_skb(skb);
 			return;
@@ -99,7 +99,7 @@ pr_info("5. __br_forward\n");
 		skb_forward_csum(skb);
 		net = dev_net(indev);
 	} else {
-		pr_info("not local_orig\n");
+		pr_info("local_orig\n");
 		if (unlikely(netpoll_tx_running(to->br->dev))) {
 			skb_push(skb, ETH_HLEN);
 			if (!is_skb_forwardable(skb->dev, skb))
