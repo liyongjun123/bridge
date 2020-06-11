@@ -579,7 +579,7 @@ void br_fdb_update(struct net_bridge *br, struct net_bridge_port *source,
 				if (unlikely(fdb->added_by_external_learn))
 					fdb->added_by_external_learn = 0;
 			}
-			if (now != fdb->updated)
+			if (now != fdb->updated)	//如果FDB中已经存在了该MAC表项，则仅更新最新的时间，用于下次老化查询
 				fdb->updated = now;
 			if (unlikely(added_by_user))
 				fdb->added_by_user = 1;
@@ -591,7 +591,7 @@ void br_fdb_update(struct net_bridge *br, struct net_bridge_port *source,
 	} else {
 		spin_lock(&br->hash_lock);
 		if (likely(!fdb_find_rcu(head, addr, vid))) {
-			fdb = fdb_create(head, source, addr, vid, 0, 0);
+			fdb = fdb_create(head, source, addr, vid, 0, 0);	//如果FDB中没有该MAC表项，则调用fdb_create来创建新的表项
 			if (fdb) {
 				if (unlikely(added_by_user))
 					fdb->added_by_user = 1;

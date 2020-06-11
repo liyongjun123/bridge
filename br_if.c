@@ -511,12 +511,14 @@ pr_info("c1. brctl addif <bridge> <device>-br_add_if\n");
 	 * the DSA switch tag protocol header and the bridge layer just return
 	 * RX_HANDLER_CONSUMED, stopping RX processing for these frames.
 	 */
+	// 回环，或者非以太网接口不可以加入bridge
 	if ((dev->flags & IFF_LOOPBACK) ||
 	    dev->type != ARPHRD_ETHER || dev->addr_len != ETH_ALEN ||
 	    !is_valid_ether_addr(dev->dev_addr) ||
 	    netdev_uses_dsa(dev))
 		return -EINVAL;
 
+	//桥设备不能再加入桥
 	/* No bridging of bridges */
 	if (dev->netdev_ops->ndo_start_xmit == br_dev_xmit) {
 		NL_SET_ERR_MSG(extack,
@@ -540,6 +542,7 @@ pr_info("c1. brctl addif <bridge> <device>-br_add_if\n");
 	if (IS_ERR(p))
 		return PTR_ERR(p);
 
+	// 调用设备通知链，告诉网络有这样一个设备
 	call_netdevice_notifiers(NETDEV_JOIN, dev);
 
 	err = dev_set_allmulti(dev, 1);
@@ -561,6 +564,7 @@ pr_info("c1. brctl addif <bridge> <device>-br_add_if\n");
 	if (err)
 		goto err3;
 
+	// 注册设备接收函数
 	err = netdev_rx_handler_register(dev, br_handle_frame, p);
 	if (err)
 		goto err4;
@@ -579,7 +583,7 @@ pr_info("c1. brctl addif <bridge> <device>-br_add_if\n");
 
 	list_add_rcu(&p->list, &br->port_list);
 
-	/*更新桥上的端口数,如果有更新，再进一步将其设为混杂模式*/
+	/*更新桥上的端口数，进一步将其设为混杂模式*/
 	nbp_update_port_count(br);
 
 	netdev_update_features(br->dev);
@@ -591,6 +595,7 @@ pr_info("c1. brctl addif <bridge> <device>-br_add_if\n");
 	else
 		netdev_set_rx_headroom(dev, br_hr);
 
+	// 添加到fdb里 mac--port
 	if (br_fdb_insert(br, p, dev->dev_addr, 0))
 		netdev_err(dev, "failed insert local address bridge forwarding table\n");
 
@@ -603,8 +608,10 @@ pr_info("c1. brctl addif <bridge> <device>-br_add_if\n");
 	spin_lock_bh(&br->lock);
 	changed_addr = br_stp_recalculate_bridge_id(br);
 
+	// 设备是否启动，桥是否启动，设备上是否有载波信号
 	if (netif_running(dev) && netif_oper_up(dev) &&
 	    (br->dev->flags & IFF_UP))
+		// 启动网桥端口，这里port状态为转发
 		br_stp_enable_port(p);
 	spin_unlock_bh(&br->lock);
 
@@ -613,9 +620,11 @@ pr_info("c1. brctl addif <bridge> <device>-br_add_if\n");
 	if (changed_addr)
 		call_netdevice_notifiers(NETDEV_CHANGEADDR, br->dev);
 
+	// 设置mtu
 	dev_set_mtu(br->dev, br_min_mtu(br));
 	br_set_gso_limits(br);
 
+	// 添加一个内核对象
 	kobject_uevent(&p->kobj, KOBJ_ADD);
 
 	return 0;
