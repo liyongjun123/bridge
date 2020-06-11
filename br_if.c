@@ -535,6 +535,7 @@ pr_info("c1. brctl addif <bridge> <device>-br_add_if\n");
 		return -EOPNOTSUPP;
 	}
 
+	// 分配一个新网桥端口并对其初始化
 	p = new_nbp(br, dev);
 	if (IS_ERR(p))
 		return PTR_ERR(p);
